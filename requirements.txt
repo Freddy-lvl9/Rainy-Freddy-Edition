@@ -1,0 +1,4 @@
+dearpygui
+mutagen
+pygame
+PyQt5
