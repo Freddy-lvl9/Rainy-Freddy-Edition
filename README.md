@@ -1,5 +1,6 @@
 <p align="center"><img src="https://github.com/NotCookey/Rainy/assets/88582190/fc09007d-43a8-4526-8824-ad684a303d52" width="130px"></p>
 <h2 align="center">Rainy Musicart</h2>
+<h3 align="center">Freddy-Edition</h3>
 <p align="center"><b>Rainy Musicart is a lightweight music player with an aesthetically pleasing design~</b></p>
 <kbd><img src="https://github.com/Freddy-lvl9/Rainy-Freddy-Edition/blob/e1fecdabcbbca673c9d153712b06c5cc2f3d4bf2/Layer_0.png"></kbd>
 
@@ -18,3 +19,4 @@
 > **Thank you for visiting, Hope you found something useful!**
 
 > **Developed and Maintained By [NotCookey](https://github.com/NotCookey)**
+> **And [Freddy-LVL9](https://github.com/Freddy-LVL9)**
