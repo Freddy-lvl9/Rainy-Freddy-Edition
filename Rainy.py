@@ -26,20 +26,32 @@ pygame.mixer.init()
 for event in pygame.event.get():
 	if event.type == pygame.USEREVENT:
 		if event.code == pygame.USEREVENT:
-			next()
+			play_next()
+		
 global state
 state=None
 
 global no
 no = 0
 
+global random_state
+random_state = False  # Standardmäßig ist der Zufallsmodus aus
+
+global slider_running
+slider_running = False
+
+global last_random
+last_random = None  # define this globally at the top
+
+global slider_thread
+slider_thread = None
 _DEFAULT_MUSIC_VOLUME = 0.5
 pygame.mixer.music.set_volume(0.5)
 def event_listener():
 	while True:
 		for event in pygame.event.get():
 			if event.type == pygame.USEREVENT:
-				next()  # this advances to the next song
+				play_next()  # this advances to the next song
 		time.sleep(0.1)
 
 # Start the event listener thread
@@ -82,26 +94,40 @@ def update_database(filename: str):
 		with open("data/songs.json", "w") as f:
 			json.dump(data, f, indent=4)
 
-def update_slider():
-	global state
-	audio = MP3(no)
-	duration = int(audio.info.length)
+def start_slider_thread(audio_path):
+    global slider_running, slider_thread
 
-	while pygame.mixer.music.get_busy() or state == 'paused':
-		current_pos = pygame.mixer.music.get_pos() / 1000
-		mins, secs = divmod(int(current_pos), 60)
-		dpg.configure_item("current_time", default_value=f"{mins}:{secs:02d}")
-		dpg.configure_item("pos", default_value=current_pos)
-		dpg.configure_item("total_duration", default_value=f"{duration // 60}:{duration % 60:02d}")
-		time.sleep(0.7)
+    slider_running = False  # alten Thread beenden
+    time.sleep(1)  # kleine Pause für sauberes Ende
 
-	# After the song ends
-	state = None
-	dpg.configure_item("cstate", default_value="State: None")
-	dpg.configure_item("csong", default_value="Now Playing : ")
-	dpg.configure_item("play", label="Play")
-	dpg.configure_item("pos", max_value=100)
-	dpg.configure_item("pos", default_value=0)
+    slider_thread = threading.Thread(target=update_slider, args=(audio_path,), daemon=True)
+    slider_thread.start()
+
+def update_slider(audio_path):
+    global state, slider_running
+
+    try:
+        audio = MP3(audio_path)
+        duration = int(audio.info.length)
+    except Exception as e:
+        print(f"Error MP3: {e}")
+        return
+
+    slider_running = True  # Slider läuft
+
+    while slider_running and (pygame.mixer.music.get_busy() or state == 'paused'):
+        current_pos = pygame.mixer.music.get_pos() / 1000
+        if current_pos < 0:
+            current_pos = 0
+
+        mins, secs = divmod(int(current_pos), 60)
+        dpg.configure_item("current_time", default_value=f"{mins}:{secs:02d}")
+        dpg.configure_item("pos", default_value=current_pos)
+        dpg.configure_item("total_duration", default_value=f"{duration // 60}:{duration % 60:02d}")
+
+        time.sleep(0.7)
+
+    print("Update-Slider stopped.")
 
 def play(sender, app_data, user_data):
 	global state, no
@@ -119,7 +145,7 @@ def play(sender, app_data, user_data):
 		dpg.configure_item(item="pos", max_value=audio.info.length)
 
 		# Start slider update thread
-		threading.Thread(target=update_slider, daemon=False).start()
+		start_slider_thread(user_data)
 
 		# Update UI elements
 		if pygame.mixer.music.get_busy():
@@ -145,7 +171,7 @@ def play_pause():
 		if song:
 			song=random.choice(song)
 			no = song
-			pygame.mixer.music.load(song)
+			pygame.mixer.music.load(song["path"])
 			pygame.mixer.music.play()
 			thread=threading.Thread(target=update_slider,daemon=False).start()	
 			dpg.configure_item("play",label="Pause")
@@ -167,17 +193,51 @@ def pre():
 	except:
 		pass
 
-def next():
-	global state,no
-	try:
-		songs = json.load(open('data/songs.json','r'))["songs"]
-		n = songs.index(no)
-		if n == len(songs)-1:
-			n = -1
-		play(sender=any,app_data=any,user_data=songs[n+1])
-	except:
-		pass
+def play_next():
+    global state, no, random_state
+    try:
+        songs = json.load(open("data/songs.json", "r"))["songs"]
+        if not songs:
+            return
 
+        if random_state:
+            no = random.choice(songs)
+        else:
+            # Finde aktuellen Index basierend auf Dateipfad
+            current_path = no["path"] if isinstance(no, dict) else no
+            index = next((i for i, s in enumerate(songs) if s["path"] == current_path), None)
+
+            if index is None or index >= len(songs) - 1:
+                no = songs[0]  # zum ersten Song springen
+            else:
+                no = songs[index + 1]
+
+        play(sender=any, app_data=any, user_data=no["path"])
+    except Exception as e:
+        print(f"Error in play_next(): {e}")
+
+
+def random_song():
+    global state, no, last_random
+    songs = json.load(open('data/songs.json', 'r'))["songs"]
+
+    if songs:
+        attempts = 0
+        choice = random.choice(songs)
+
+        # Try up to 10 times to find a different song
+        while choice == last_random and attempts < 10:
+            choice = random.choice(songs)
+            attempts += 1
+
+        no = choice
+        last_random = choice  # remember last choice
+
+        play(sender=any, app_data=any, user_data=no["path"])
+    else:
+        dpg.configure_item("csong", default_value="No songs available")
+        dpg.configure_item("cstate", default_value="State: None")
+        dpg.configure_item("play", label="Play")
 def stop():
 	global state
 	pygame.mixer.music.stop()
@@ -243,6 +303,15 @@ def removeall():
 	json.dump(songs,open("data/songs.json", "w"),indent=4)
 	dpg.delete_item("list", children_only=True)
 	load_database()
+
+def toggle_random():
+	global random_state
+	random_state = not random_state
+
+	if random_state:
+		dpg.configure_item("random", label="Random [ON]")  # Grün für "ON"
+	else:
+		dpg.configure_item("random", label="Random [OFF]")  # Rot für "OFF"
 
 with dpg.theme(tag="base"):
 	with dpg.theme_component():
@@ -332,10 +401,11 @@ with dpg.window(tag="main",label="window title"):
 						dpg.add_button(label="Play",width=65,height=30,tag="play",callback=play_pause)						
 						dpg.add_button(label="Stop",callback=stop,width=65,height=30)
 						dpg.add_button(label="Back",width=65,height=30,show=True,tag="pre",callback=pre)
-						dpg.add_button(label="Next",tag="next",show=True,callback=next,width=65,height=30)
+						dpg.add_button(label="Next",tag="play_next",show=True,callback=play_next,width=65,height=30)
+						dpg.add_button(label="Random [OFF]", tag="random", callback=toggle_random, width=110,height=30)
 						dpg.add_text("0:00", tag="current_time")
-						dpg.add_slider_float(tag="pos",format="",width=1000)
-						dpg.add_text("0:00", tag="total_duration")
+						dpg.add_slider_float(tag="pos",format="",width=1000,height=15)
+						dpg.add_text("0:00", tag="total_duration",)
 					dpg.add_slider_float(tag="volume", width=200, height=15,pos=(10,59), format="%.0f%%", default_value=_DEFAULT_MUSIC_VOLUME * 100, callback=update_volume)
 
 						
