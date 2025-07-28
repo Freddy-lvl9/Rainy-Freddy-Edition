@@ -2,7 +2,7 @@
 <h2 align="center">Rainy Musicart</h2>
 <h3 align="center">Freddy-Edition</h3>
 <p align="center"><b>Rainy Musicart is a lightweight music player with an aesthetically pleasing design~</b></p>
-<kbd><img src="https://github.com/Freddy-lvl9/Rainy-Freddy-Edition/blob/e1fecdabcbbca673c9d153712b06c5cc2f3d4bf2/Layer_0.png"></kbd>
+<kbd><img src="https://github.com/Freddy-lvl9/Rainy-Freddy-Edition/blob/master/Layer_0.png"></kbd>
 
 ## About
 - **Rainy Musicart is a lightweight music player built in Python that makes use of the lovely [DearPyGui](https://github.com/hoffstadt/DearPyGui/) for the aesthetically designed interface as well as a number of third-party libraries.**
